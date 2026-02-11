@@ -32,8 +32,10 @@ export default function AnalyticsPage() {
                 api.getWasteTrends(30),
                 api.getZonePerformance(),
             ]);
-            setTrends(trendsData.data || []);
-            setZonePerformance(perfData.zones || []);
+            const trendList = Array.isArray(trendsData) ? trendsData : trendsData?.data || [];
+            const perfList = Array.isArray(perfData) ? perfData : perfData?.zones || [];
+            setTrends(trendList);
+            setZonePerformance(perfList);
         } catch (error) {
             console.error('Failed to fetch analytics:', error);
         } finally {
@@ -92,6 +94,11 @@ export default function AnalyticsPage() {
                     30-Day Waste Collection Trend
                 </h3>
                 <div className="h-48 flex items-end gap-1">
+                    {trends.length === 0 && (
+                        <div className="w-full text-center text-sm text-slate-500">
+                            No waste records found for the last 30 days.
+                        </div>
+                    )}
                     {trends.map((trend, idx) => {
                         const height = (trend.waste_kg / maxWaste) * 100;
                         const date = new Date(trend.date);
@@ -128,6 +135,11 @@ export default function AnalyticsPage() {
                     Zone Performance (Last 30 Days)
                 </h3>
                 <div className="space-y-3">
+                    {zonePerformance.length === 0 && (
+                        <div className="text-center text-sm text-slate-500 py-6">
+                            No zone performance data available yet.
+                        </div>
+                    )}
                     {zonePerformance.slice(0, 10).map((zone) => {
                         const maxZoneWaste = Math.max(...zonePerformance.map((z) => z.total_waste_kg), 1);
                         const percentage = (zone.total_waste_kg / maxZoneWaste) * 100;

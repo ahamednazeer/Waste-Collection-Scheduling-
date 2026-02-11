@@ -12,10 +12,8 @@ import {
     Users,
     Calendar,
     ChartLineUp,
-    GearSix,
     List,
-    Brain,
-    Sparkle
+    Brain
 } from '@phosphor-icons/react';
 
 interface MenuItem {
@@ -46,7 +44,6 @@ const menuItemsByRole: Record<string, MenuItem[]> = {
         { icon: Truck, label: 'Vehicles', path: '/admin/vehicles' },
         { icon: Users, label: 'Workforce', path: '/admin/workforce' },
         { icon: ChartLineUp, label: 'Analytics', path: '/admin/analytics' },
-        { icon: GearSix, label: 'Settings', path: '/admin/settings' },
     ],
     SUPERVISOR: [
         { icon: Gauge, label: 'Dashboard', path: '/admin' },

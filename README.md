@@ -38,7 +38,7 @@ A 100% software-based decision-support platform for intelligent waste collection
 |-----------|------------|
 | Backend | Python + FastAPI + SQLite |
 | Frontend | Next.js 16 + TypeScript + Tailwind |
-| ML | scikit-learn, numpy, pandas |
+| ML | xgboost, scikit-learn, numpy, pandas |
 | Icons | Phosphor Icons |
 
 ## Project Structure

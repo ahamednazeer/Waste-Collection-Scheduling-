@@ -39,7 +39,7 @@ async def get_zone_predictions(
     return {
         "zone_id": zone_id,
         "zone_name": zone.name,
-        "model_type": "RandomForest",
+        "model_type": "XGBoost",
         "predictions": [
             {
                 "date": p["date"].isoformat(),
@@ -74,7 +74,7 @@ async def generate_predictions(
     
     return {
         "message": f"Generated {len(predictions)} ML-based predictions",
-        "model_type": "RandomForest",
+        "model_type": "XGBoost",
         "date_range": {
             "start": start_date.isoformat(),
             "end": end_date.isoformat()
@@ -157,10 +157,19 @@ async def get_model_info(
     
     service = AdvancedPredictionService(db)
     model_exists = service.model is not None
+    metrics = service.metrics or {}
+    training_metrics = None
+    if metrics:
+        training_metrics = {
+            "mae": metrics.get("mae"),
+            "rmse": metrics.get("rmse"),
+            "r2_score": metrics.get("r2_score")
+        }
     
     return {
-        "model_type": "RandomForestRegressor",
+        "model_type": "XGBRegressor",
         "model_loaded": model_exists,
+        "training_metrics": training_metrics,
         "features_count": 19,
         "features": [
             "day_of_week", "day_of_month", "month", "is_weekend",
@@ -170,5 +179,5 @@ async def get_model_info(
             "is_summer", "is_monsoon", "is_festival_season"
         ],
         "training_data_days": 180,
-        "algorithm": "Random Forest with 100 estimators"
+        "algorithm": "XGBoost (XGBRegressor)"
     }

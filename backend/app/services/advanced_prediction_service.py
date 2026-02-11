@@ -1,11 +1,12 @@
 """
-Advanced ML Prediction Service with Random Forest and feature engineering
+Advanced ML Prediction Service with XGBoost and feature engineering
 """
 from datetime import date, timedelta
 from typing import List, Dict, Optional, Tuple
 import numpy as np
 import pickle
 import os
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -13,22 +14,24 @@ from ..models.zone import Zone, AreaType, PriorityLevel
 from ..models.waste_record import WasteRecord, WasteType
 
 # ML imports
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from xgboost import XGBRegressor
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-MODEL_PATH = "models/waste_predictor.pkl"
-SCALER_PATH = "models/scaler.pkl"
+MODEL_PATH = "models/waste_predictor_xgb.pkl"
+SCALER_PATH = "models/scaler_xgb.pkl"
+METRICS_PATH = "models/metrics_xgb.json"
 
 
 class AdvancedPredictionService:
-    """Advanced ML-based waste prediction service using Random Forest"""
+    """Advanced ML-based waste prediction service using XGBoost"""
     
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.model: Optional[RandomForestRegressor] = None
+        self.model: Optional[XGBRegressor] = None
         self.scaler: Optional[StandardScaler] = None
+        self.metrics: Optional[Dict] = None
         self.area_encoder = LabelEncoder()
         self.priority_encoder = LabelEncoder()
         
@@ -47,10 +50,14 @@ class AdvancedPredictionService:
                     self.model = pickle.load(f)
                 with open(SCALER_PATH, 'rb') as f:
                     self.scaler = pickle.load(f)
+            if os.path.exists(METRICS_PATH):
+                with open(METRICS_PATH, 'r') as f:
+                    self.metrics = json.load(f)
         except Exception as e:
             print(f"Could not load model: {e}")
             self.model = None
             self.scaler = None
+            self.metrics = None
     
     def _save_model(self):
         """Save trained model to disk"""
@@ -59,6 +66,13 @@ class AdvancedPredictionService:
             pickle.dump(self.model, f)
         with open(SCALER_PATH, 'wb') as f:
             pickle.dump(self.scaler, f)
+
+    def _save_metrics(self, metrics: Dict):
+        """Save latest training metrics to disk"""
+        os.makedirs("models", exist_ok=True)
+        with open(METRICS_PATH, 'w') as f:
+            json.dump(metrics, f)
+        self.metrics = metrics
     
     def _extract_features(self, record_date: date, zone: Zone) -> np.ndarray:
         """Extract features for prediction"""
@@ -235,7 +249,7 @@ class AdvancedPredictionService:
         return max(0, waste)
     
     async def train_model(self) -> Dict:
-        """Train the Random Forest model"""
+        """Train the XGBoost model"""
         print("Generating training data...")
         X, y = await self.generate_training_data(days=180)
         
@@ -251,23 +265,30 @@ class AdvancedPredictionService:
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
         
-        # Train Random Forest with optimized hyperparameters
-        self.model = RandomForestRegressor(
-            n_estimators=100,
-            max_depth=15,
-            min_samples_split=5,
-            min_samples_leaf=2,
+        # Train XGBoost with tuned, fast baseline parameters
+        self.model = XGBRegressor(
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.9,
+            colsample_bytree=0.8,
+            objective="reg:squarederror",
             random_state=42,
             n_jobs=-1
         )
         
-        self.model.fit(X_train_scaled, y_train)
+        self.model.fit(
+            X_train_scaled,
+            y_train,
+            eval_set=[(X_test_scaled, y_test)],
+            verbose=False
+        )
         
         # Evaluate
         y_pred = self.model.predict(X_test_scaled)
         
         metrics = {
-            "model_type": "RandomForestRegressor",
+            "model_type": "XGBRegressor",
             "training_samples": len(X_train),
             "test_samples": len(X_test),
             "mae": float(mean_absolute_error(y_test, y_pred)),
@@ -284,6 +305,7 @@ class AdvancedPredictionService:
         
         # Save model
         self._save_model()
+        self._save_metrics(metrics)
         
         print(f"Model trained! R² Score: {metrics['r2_score']:.3f}")
         return metrics
@@ -320,10 +342,7 @@ class AdvancedPredictionService:
             # Predict
             predicted_kg = float(self.model.predict(features_scaled)[0])
             
-            # Calculate confidence based on model performance
-            confidence = min(0.95, max(0.70, self.model.score(
-                self.scaler.transform(features), [predicted_kg]
-            ) + 0.3))
+            confidence = self._get_prediction_confidence()
             
             predictions.append({
                 "date": pred_date,
@@ -332,6 +351,17 @@ class AdvancedPredictionService:
             })
         
         return predictions
+
+    def _get_prediction_confidence(self) -> float:
+        """Estimate confidence using latest training metrics when available."""
+        if self.metrics and self.metrics.get("r2_score") is not None:
+            try:
+                r2 = float(self.metrics["r2_score"])
+                r2 = max(0.0, min(r2, 1.0))
+                return min(0.95, max(0.70, 0.70 + (r2 * 0.25)))
+            except Exception:
+                pass
+        return 0.78
     
     async def generate_predictions(
         self, 

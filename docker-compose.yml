@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: ahamednazeer/waste-collection-scheduling:BE-0.1-amd
+    image: ahamednazeer/waste-collection-scheduling:BE-0.2-amd
     container_name: waste-collection-backend
     ports:
       - "8000:8000" 
@@ -11,7 +11,7 @@ services:
     restart: always
 
   frontend:
-    image: ahamednazeer/waste-collection-scheduling:FE-0.1-amd
+    image: ahamednazeer/waste-collection-scheduling:FE-0.2-amd
     container_name: waste-collection-frontend
     ports:
       - "3000:3000"
